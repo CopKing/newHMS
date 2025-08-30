@@ -1,3 +1,125 @@
+<?php
+// Include necessary files
+require('connection.php');
+$email = $password = '';
+
+if($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Check if this is a hospital login
+    $is_hospital_login = isset($_POST['login_type']) && $_POST['login_type'] == 'hospital';
+    
+    // allow users to login using email OR username (name)
+    $identifier = safe_input($_POST['email'] ?? ''); // form field remains named 'email'
+    $password = safe_input($_POST['password'] ?? '');
+
+    $user = null;
+
+    // use prepared statement to avoid SQL injection
+    $stmt = $conn->prepare("SELECT `id`, `name`, `email`, `password`, `role_id` FROM `users` WHERE `email` = ? OR `name` = ? LIMIT 1");
+    if($stmt) {
+        $stmt->bind_param('ss', $identifier, $identifier);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if($result && $result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+        }
+    } else {
+        // show DB prepare error when debugging
+        if(isset($_GET['debug']) && $_GET['debug'] == '1') {
+            echo "DB prepare failed: " . $conn->error;
+        }
+    }
+
+    if($user) {
+        if(password_verify($password, $user['password'])) {
+            // For hospital logins, check if hospital is approved
+            if($is_hospital_login) {
+                // Verify this user has hospital role
+                if($user['role_id'] != 2) {
+                    echo "This account is not registered as a hospital. Please use the patient login.";
+                    exit();
+                }
+                
+                // Check if hospital is approved
+                $stmt = $conn->prepare("SELECT `Approval_Status` FROM `hospital` WHERE `UserID` = ?");
+                $stmt->bind_param("i", $user['id']);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                if($result && $result->num_rows > 0) {
+                    $hospital = $result->fetch_assoc();
+                    if($hospital['Approval_Status'] != 'Approved') {
+                        $status = $hospital['Approval_Status'];
+                        if($status == 'Pending') {
+                            echo "Your hospital registration is pending approval. Please wait for admin approval.";
+                        } else if($status == 'Rejected') {
+                            echo "Your hospital registration was rejected. Please contact admin for details.";
+                        } else {
+                            echo "Your hospital account is not active. Please contact admin.";
+                        }
+                        exit();
+                    }
+                } else {
+                    echo "No hospital record found for this account.";
+                    exit();
+                }
+                $stmt->close();
+            }
+            
+            // Set session variables
+            $_SESSION['logged_in'] = true;
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_email'] = $user['email'];
+            $_SESSION['user_name'] = $user['name'];
+            $_SESSION['user_role_id'] = $user['role_id'];
+
+            // Redirect based on role
+            if($user['role_id'] == 1) {
+                $_SESSION['is_admin'] = true;
+                header("Location: admin/index.php");
+                exit();
+            } else if($user['role_id'] == 2) {
+                
+                header("Location: hospital/index.php");
+                exit();
+            } else {
+                $_SESSION['is_patient'] = true;
+                header("Location: patient/index.php");
+                exit();
+            }
+        } else {
+            echo "Incorrect password";
+        }
+    } else {
+        // no user found
+        echo "No user found with this email";
+        // optional debug block: try direct query and similar counts when ?debug=1
+        if(isset($_GET['debug']) && $_GET['debug'] == '1') {
+            echo "\nSearched for identifier: '" . htmlspecialchars($identifier) . "'.\n";
+            $dbg = $conn->real_escape_string($identifier);
+            $dq = "SELECT id, name, email FROM users WHERE email = '$dbg' OR name = '$dbg'";
+            $dr = $conn->query($dq);
+            if($dr === false) {
+                echo "Direct query error: " . $conn->error;
+            } else {
+                echo "Direct query rows: " . $dr->num_rows . "\n";
+                if($dr->num_rows > 0) {
+                    echo "Matching rows (direct query): ";
+                    pr($dr->fetch_assoc());
+                } else {
+                    $like = "SELECT COUNT(*) as c FROM users WHERE name LIKE '%$dbg%' OR email LIKE '%$dbg%'";
+                    $lr = $conn->query($like);
+                    $count = ($lr && $lr->fetch_assoc()) ? $lr->fetch_assoc()['c'] : 0;
+                    echo "Similar rows found: " . $count;
+                }
+            }
+        }
+    }
+}
+
+// Determine login type from URL parameter
+$login_type = isset($_GET['type']) ? $_GET['type'] : '';
+$is_hospital_page = ($login_type == 'hospital');
+?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -6,7 +128,7 @@
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>Pages / Login - NiceAdmin Bootstrap Template</title>
+  <title><?php echo $is_hospital_page ? 'Hospital Login' : 'Login Page'; ?></title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -50,9 +172,9 @@
             <div class="col-lg-4 col-md-6 d-flex flex-column align-items-center justify-content-center">
 
               <div class="d-flex justify-content-center py-4">
-                <a href="index.html" class="logo d-flex align-items-center w-auto">
-                  <img src="assets/img/logo.png" alt="">
-                  <span class="d-none d-lg-block">NiceAdmin</span>
+                <a href="index.php" class="logo d-flex align-items-center w-auto">
+                  <img src="assets/img/covid19.png" alt="">
+                  <span class="d-none d-lg-block"><?php echo $is_hospital_page ? 'Hospital Portal' : 'Login'; ?></span>
                 </a>
               </div><!-- End Logo -->
 
@@ -61,18 +183,20 @@
                 <div class="card-body">
 
                   <div class="pt-4 pb-2">
-                    <h5 class="card-title text-center pb-0 fs-4">Login to Your Account</h5>
-                    <p class="text-center small">Enter your username & password to login</p>
+                    <h5 class="card-title text-center pb-0 fs-4"><?php echo $is_hospital_page ? 'Hospital Login' : 'Login to Your Account'; ?></h5>
+                    <p class="text-center small"><?php echo $is_hospital_page ? 'Enter your hospital credentials to login' : 'Enter your username & password to login'; ?></p>
                   </div>
 
-                  <form class="row g-3 needs-validation" novalidate>
-
+                  <form class="row g-3 needs-validation" method="post" novalidate>
+                    <!-- Hidden field to identify login type -->
+                    <input type="hidden" name="login_type" value="<?php echo $is_hospital_page ? 'hospital' : ''; ?>">
+                    
                     <div class="col-12">
-                      <label for="yourUsername" class="form-label">Username</label>
+                      <label for="yourUsername" class="form-label"><?php echo $is_hospital_page ? 'Hospital Username' : 'Username'; ?></label>
                       <div class="input-group has-validation">
                         <span class="input-group-text" id="inputGroupPrepend">@</span>
-                        <input type="text" name="username" class="form-control" id="yourUsername" required>
-                        <div class="invalid-feedback">Please enter your username.</div>
+                        <input type="text" name="email" class="form-control" id="yourUsername" required>
+                        <div class="invalid-feedback">Please enter your <?php echo $is_hospital_page ? 'hospital username' : 'email'; ?>.</div>
                       </div>
                     </div>
 
@@ -92,20 +216,27 @@
                       <button class="btn btn-primary w-100" type="submit">Login</button>
                     </div>
                     <div class="col-12">
-                      <p class="small mb-0">Don't have account? <a href="pages-register.html">Create an account</a></p>
+                      <p class="big mb-0">
+                        <?php if($is_hospital_page): ?>
+                          Don't have a hospital account? <a href="register_hospital.php">Register Hospital</a>
+                        <?php else: ?>
+                          Don't have account? <a href="register.php">Create an account</a>
+                        <?php endif; ?>
+                      </p>
+                      <p class="big mb-0">
+                        <?php if($is_hospital_page): ?>
+                          Want to go back?<a href="index.php">back to index</a>
+                        <?php else: ?>
+                          <a href="login.php?type=hospital">Hospital Login</a>
+                        <?php endif; ?>
+                      </p>
                     </div>
                   </form>
 
                 </div>
               </div>
 
-              <div class="credits">
-                <!-- All the links in the footer should remain intact. -->
-                <!-- You can delete the links only if you purchased the pro version. -->
-                <!-- Licensing information: https://bootstrapmade.com/license/ -->
-                <!-- Purchase the pro version with working PHP/AJAX contact form: https://bootstrapmade.com/nice-admin-bootstrap-admin-html-template/ -->
-                Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a>
-              </div>
+          
 
             </div>
           </div>

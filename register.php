@@ -1,3 +1,35 @@
+<?php 
+// Include connection
+require('connection.php');
+// Initialize variables
+$name = $email = $password = '';
+$role_id = 3; // Default role
+// Check if form is submitted
+if($_SERVER['REQUEST_METHOD'] == 'POST') {
+  // prx($_POST);
+    // Get form data
+    $name = safe_input($_POST['name']);
+    $email = safe_input($_POST['email']);
+    $password = safe_input($_POST['password']);    
+    
+   
+    // Hash the password
+    $hashed_password = password_hash($password, algo: PASSWORD_DEFAULT);
+
+    
+    // Insert into database
+    $sql = "INSERT INTO `users` (`id`, `name`, `role_id`, `password`, `email`) VALUES (NULL, '$name', '$role_id', '$hashed_password', '$email')";
+
+    if(mysqli_query($conn, $sql)) {
+        echo "Registration successful!";
+        // Redirect to login page or home page
+        header("Location: login.php");
+        exit();
+    } else {
+        echo "Error: " . mysqli_error($conn);
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5,7 +37,7 @@
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>Pages / Register - NiceAdmin Bootstrap Template</title>
+  <title>Create a Patient Account</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -29,13 +61,6 @@
   <!-- Template Main CSS File -->
   <link href="assets/css/style.css" rel="stylesheet">
 
-  <!-- =======================================================
-  * Template Name: NiceAdmin
-  * Updated: May 30 2023 with Bootstrap v5.3.0
-  * Template URL: https://bootstrapmade.com/nice-admin-bootstrap-admin-html-template/
-  * Author: BootstrapMade.com
-  * License: https://bootstrapmade.com/license/
-  ======================================================== -->
 </head>
 
 <body>
@@ -49,9 +74,9 @@
             <div class="col-lg-4 col-md-6 d-flex flex-column align-items-center justify-content-center">
 
               <div class="d-flex justify-content-center py-4">
-                <a href="index.html" class="logo d-flex align-items-center w-auto">
-                  <img src="assets/img/logo.png" alt="">
-                  <span class="d-none d-lg-block">NiceAdmin</span>
+                <a href="index.php" class="logo d-flex align-items-center w-auto">
+                  <img src="assets/img/covid19.png" alt="">
+                  <span class="d-none d-lg-block">HMS</span>
                 </a>
               </div><!-- End Logo -->
 
@@ -61,10 +86,10 @@
 
                   <div class="pt-4 pb-2">
                     <h5 class="card-title text-center pb-0 fs-4">Create an Account</h5>
-                    <p class="text-center small">Enter your personal details to create account</p>
+                    <p class="text-center small">Enter patient details to create account</p>
                   </div>
 
-                  <form class="row g-3 needs-validation" novalidate>
+                  <form action="register.php" method="POST" class="row g-3 needs-validation" novalidate>
                     <div class="col-12">
                       <label for="yourName" class="form-label">Your Name</label>
                       <input type="text" name="name" class="form-control" id="yourName" required>
@@ -75,15 +100,6 @@
                       <label for="yourEmail" class="form-label">Your Email</label>
                       <input type="email" name="email" class="form-control" id="yourEmail" required>
                       <div class="invalid-feedback">Please enter a valid Email adddress!</div>
-                    </div>
-
-                    <div class="col-12">
-                      <label for="yourUsername" class="form-label">Username</label>
-                      <div class="input-group has-validation">
-                        <span class="input-group-text" id="inputGroupPrepend">@</span>
-                        <input type="text" name="username" class="form-control" id="yourUsername" required>
-                        <div class="invalid-feedback">Please choose a username.</div>
-                      </div>
                     </div>
 
                     <div class="col-12">
@@ -103,7 +119,7 @@
                       <button class="btn btn-primary w-100" type="submit">Create Account</button>
                     </div>
                     <div class="col-12">
-                      <p class="small mb-0">Already have an account? <a href="pages-login.html">Log in</a></p>
+                      <p class="small mb-0">Already have an account? <a href="login.php">Log in</a></p>
                     </div>
                   </form>
 
@@ -112,10 +128,7 @@
 
               <div class="credits">
                 <!-- All the links in the footer should remain intact. -->
-                <!-- You can delete the links only if you purchased the pro version. -->
-                <!-- Licensing information: https://bootstrapmade.com/license/ -->
-                <!-- Purchase the pro version with working PHP/AJAX contact form: https://bootstrapmade.com/nice-admin-bootstrap-admin-html-template/ -->
-                Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a>
+                Designed by <a href="#">HMS</a>
               </div>
 
             </div>
