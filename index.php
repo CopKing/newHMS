@@ -606,6 +606,7 @@
                             <a href="#"><i class="fab fa-twitter"></i></a>
                             <a href="#"><i class="fab fa-linkedin-in"></i></a>
                             <a href="#"><i class="fab fa-instagram"></i></a>
+                            <a href="http://localhost/newhms/login.php"><i class="fa-jelly-fill fa-regular fa-circle-user"></i></a>
                         </div>
                     </div>
                 </div>
